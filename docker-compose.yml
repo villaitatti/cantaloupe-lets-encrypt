@@ -1,0 +1,53 @@
+version: '3.5'
+services:
+  cantaloupe:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    ports:
+      - '8182:8182'
+    environment:
+      - 'VIRTUAL_HOST=ADD_HOSTNAME_HERE'
+      - 'LETSENCRYPT_HOST=ADD_HOSTNAME_HERE'
+      - 'LETSENCRYPT_EMAIL=ADD_EMAIL_ADDRESS_HERE'
+      - 'VIRTUAL_PORT=8182'
+      - 'SOURCE_STATIC=S3Source'
+      - 'S3SOURCE_ENDPOINT=s3.ADD_S3_ENDPONT_HERE.amazonaws.com'
+      - 'S3SOURCE_ACCESS_KEY_ID=ADD_ACCESS_KEY_HERE'
+      - 'S3SOURCE_SECRET_KEY=ADD_SECRET_KEY_HERE'
+      - 'S3SOURCE_BASICLOOKUPSTRATEGY_BUCKET_NAME=ADD_S3_BUCKET_NAME_HERE'
+      - 'PROCESSOR_SELECTION_STRATEGY=ManualSelectionStrategy'
+      - 'PROCESSOR_MANUAL_SELECTIONSTRATEGY_JP2=KakaduNativeProcessor'
+      - 'SLASH_SUBSTITUTE=!'
+    restart: always
+
+  nginx-proxy:
+    image: jwilder/nginx-proxy:alpine
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./data/certs:/etc/nginx/certs:ro
+      - ./data/nginx/vhost.d:/etc/nginx/vhost.d
+      - ./data/share/nginx/html:/usr/share/nginx/html
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+    restart: always
+
+  letsencrypt-proxy:
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    container_name: letsencrypt-proxy
+    depends_on:
+      - nginx-proxy
+    volumes:
+      - ./data/nginx/vhost.d:/etc/nginx/vhost.d
+      - ./data/share/nginx/html:/usr/share/nginx/html
+      - ./data/certs:/etc/nginx/certs:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: always
+    environment:
+      - "NGINX_PROXY_CONTAINER=nginx-proxy"
+networks:
+  default:
+    name: nginx-proxy
